@@ -1,16 +1,16 @@
+// src/router/index.js
 import { createMemoryHistory, createWebHistory, createRouter } from "vue-router";
 
 import Status from "@/views/StatusView.vue";
 import Pilots from "@/views/PilotsView.vue";
 import Events from "@/views/EventsView.vue";
 import Config from "@/assets/info/general-config.json";
+import sfx from "@/services/sfx";
 
 const DEFAULT_TITLE = Config.defaultTitle;
+
 const routes = [
-	{
-		path: "/",
-		redirect: "/status",
-	},
+	{ path: "/", redirect: "/status" },
 	{
 		path: "/status",
 		name: "Mission Status",
@@ -37,21 +37,28 @@ const routes = [
 const router = createRouter({
 	history: import.meta.env.SSR ? createMemoryHistory() : createWebHistory(),
 	routes,
-	scrollBehavior(to, from, savedPosition) {
+	scrollBehavior(to) {
 		if (to.hash) {
-			return {
-				el: to.hash,
-				behavior: "smooth",
-			};
+			return { el: to.hash, behavior: "smooth" };
 		}
 	},
 });
 
+let hasNavigated = false;
+
 router.beforeEach((to, from, next) => {
-	// Use next tick to handle router history correctly
-	// see: https://github.com/vuejs/vue-router/issues/914#issuecomment-384477609
 	document.title = `${to.meta.title}`;
 	next();
+});
+
+router.afterEach((to, from) => {
+	// Skip first navigation (initial load / redirect)
+	if (!hasNavigated) {
+		hasNavigated = true;
+		return;
+	}
+	// Only on view switches
+	if (to.path !== from.path) sfx.playBrowse();
 });
 
 export default router;
