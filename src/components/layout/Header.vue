@@ -69,15 +69,4 @@ export default {
 };
 </script>
 
-<style lang="scss" scoped>
-.logo {
-	flex: 0 0 auto; /* prevents flexbox shrinking/squashing */
-	display: block;
-
-	/* force a consistent box but preserve aspect ratio */
-	width: 72px;
-	height: 72px;
-	object-fit: contain;
-	object-position: center;
-}
-</style>
+<style lang="scss" scoped></style>
