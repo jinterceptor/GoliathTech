@@ -2,18 +2,18 @@
   "initialSlug": "001",
   "planetPath": "/planet.webm",
   "animate": true,
-  "defaultTitle": "MSMC |",
+  "defaultTitle": "UNION |",
   "icon": "/faction-logos/msmc.svg",
   "header": {
-    "planet": "Heiligtum-6 'Deep Blue'",
+    "planet": "Cressidium",
     "year": "5017u",
-    "system": "Heiligtum",
+    "system": "Cressidium",
     "gate": "Rào Cỏ",
-    "ring": "Annamite",
-    "headerTitle": "Mirrorsmoke",
-    "headerSubtitle": "Mercenary Company",
-    "subheaderTitle": "Contract Work",
-    "subheaderSubtitle": "Sierra-Whiskey-Alpha-Golf"
+    "ring": "Cascade",
+    "headerTitle": "Task Force",
+    "headerSubtitle": "INDIGO",
+    "subheaderTitle": "Assigned-to",
+    "subheaderSubtitle": "UNS-CV 'RIO GRANDE'"
   },
   "pilotSpecialInfo": {}
 }
