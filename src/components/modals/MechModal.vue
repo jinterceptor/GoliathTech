@@ -65,6 +65,7 @@
 
 <script>
 import { VueMarkdownIt } from '@f3ve/vue-markdown-it';
+import sfx from "@/services/sfx";
 
 export default {
   components: {
@@ -105,6 +106,8 @@ export default {
   beforeUpdate() {
   },
   mounted() {
+    sfx.playClick();
+
     if (this.mech) {
       this.getActiveLoadout();
     }
