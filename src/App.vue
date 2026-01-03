@@ -1,42 +1,64 @@
 <!-- src/App.vue -->
 <template>
-	<div class="page-wrapper">
-		<Header :planet-path="planetPath" :class="{ animate: animate }" :header="header" />
-		<Sidebar :animate="animate" :class="{ animate: animate }" />
+	<BootScreen v-if="!hasEntered" @enter="onEnterBoot" @done="hasEntered = true" />
+
+	<div v-show="hasEntered">
+		<div class="page-wrapper">
+			<Header :planet-path="planetPath" :class="{ animate: animate }" :header="header" />
+			<Sidebar :animate="animate" :class="{ animate: animate }" />
+		</div>
+		<div id="router-view-container">
+			<router-view
+				:animate="animate"
+				:initial-slug="initialSlug"
+				:missions="missions"
+				:events="events"
+				:pilots="pilots"
+				:clocks="clocks"
+				:reserves="reserves"
+			/>
+		</div>
+		<svg
+			style="visibility: hidden; position: absolute"
+			width="0"
+			height="0"
+			xmlns="http://www.w3.org/2000/svg"
+			version="1.1"
+		>
+			<defs>
+				<filter id="round">
+					<feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur" />
+					<feColorMatrix
+						in="blur"
+						mode="matrix"
+						values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 19 -5"
+						result="goo"
+					/>
+					<feComposite in="SourceGraphic" in2="goo" operator="atop" />
+				</filter>
+			</defs>
+		</svg>
 	</div>
-	<div id="router-view-container">
-		<router-view :animate="animate" :initial-slug="initialSlug" :missions="missions" :events="events"
-			:pilots="pilots" :clocks="clocks" :reserves="reserves" />
-	</div>
-	<svg style="visibility: hidden; position: absolute" width="0" height="0" xmlns="http://www.w3.org/2000/svg"
-		version="1.1">
-		<defs>
-			<filter id="round">
-				<feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur" />
-				<feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 19 -5"
-					result="goo" />
-				<feComposite in="SourceGraphic" in2="goo" operator="atop" />
-			</filter>
-		</defs>
-	</svg>
-	<audio autoplay>
-		<source src="/sounds/startup.ogg" type="audio/ogg" />
-	</audio>
 </template>
 
 <script>
 import Header from "./components/layout/Header.vue";
 import Sidebar from "./components/layout/Sidebar.vue";
+import BootScreen from "@/components/BootScreen.vue";
 import Config from "@/assets/info/general-config.json";
+import sfx from "@/services/sfx";
 
 export default {
 	components: {
 		Header,
 		Sidebar,
+		BootScreen,
 	},
 
 	data() {
 		return {
+			hasEntered: false,
+
 			animate: Config.animate,
 			initialSlug: Config.initialSlug,
 			planetPath: Config.planetPath,
@@ -52,8 +74,8 @@ export default {
 	},
 	created() {
 		this.setTitleFavicon(Config.defaultTitle + " MISSION BRIEFING", Config.icon);
-		this.importMissions(import.meta.glob("@/assets/missions/*.md", { query: '?raw', import: 'default' }));
-		this.importEvents(import.meta.glob("@/assets/events/*.md", { query: '?raw', import: 'default' }));
+		this.importMissions(import.meta.glob("@/assets/missions/*.md", { query: "?raw", import: "default" }));
+		this.importEvents(import.meta.glob("@/assets/events/*.md", { query: "?raw", import: "default" }));
 		this.importClocks(import.meta.glob("@/assets/clocks/*.json"));
 		this.importReserves(import.meta.glob("@/assets/reserves/*.json"));
 		this.importPilots(import.meta.glob("@/assets/pilots/*.json"));
@@ -62,12 +84,32 @@ export default {
 		this.$router.push("/status");
 	},
 	methods: {
+		async onEnterBoot() {
+			// unlock other UI SFX on first user gesture
+			try {
+				await sfx.unlock();
+			} catch {
+				// ignore
+			}
+
+			// play startup sound on user gesture (autoplay-policy safe)
+			try {
+				const base = import.meta.env.BASE_URL || "/";
+				const audio = new Audio(encodeURI(`${base}sounds/startup.ogg`));
+				audio.preload = "auto";
+				audio.currentTime = 0;
+				await audio.play();
+			} catch {
+				// ignore
+			}
+		},
+
 		setTitleFavicon(title, favicon) {
 			document.title = title;
-			let headEl = document.querySelector('head');
-			let faviconEl = document.createElement('link');
-			faviconEl.setAttribute('rel', 'shortcut icon');
-			faviconEl.setAttribute('href', favicon);
+			let headEl = document.querySelector("head");
+			let faviconEl = document.createElement("link");
+			faviconEl.setAttribute("rel", "shortcut icon");
+			faviconEl.setAttribute("href", favicon);
 			headEl.appendChild(faviconEl);
 		},
 
@@ -79,11 +121,6 @@ export default {
 			const line = String(thumbnailLine ?? "").trim();
 			if (!line) return "";
 
-			// Accept:
-			//   ![](file.png)
-			//   ![](<Rio Grande.png>)
-			//   [](file.png)
-			//   file.png
 			let url = line;
 
 			const mdImage = /!\[[^\]]*]\((<[^>]+>|[^)]+?)\)/.exec(line);
@@ -94,25 +131,21 @@ export default {
 
 			url = String(url).trim();
 
-			// unwrap <...>
 			if (url.startsWith("<") && url.endsWith(">")) url = url.slice(1, -1).trim();
 
-			// Keep external/data as-is
 			if (this.isExternalUrl(url)) return url;
 
-			// Absolute path: just encode it
 			if (url.startsWith("/")) return encodeURI(url);
 
-			// Otherwise: treat as file under public/images/
 			const rel = url.replace(/^\.?\/*/, "");
 			return encodeURI(`/images/${rel}`);
 		},
 		// --- end added ---
 
 		async importMissions(files) {
-			let filePromises = Object.keys(files).map(path => files[path]());
+			let filePromises = Object.keys(files).map((path) => files[path]());
 			let fileContents = await Promise.all(filePromises);
-			fileContents.forEach(content => {
+			fileContents.forEach((content) => {
 				let mission = {};
 				mission["slug"] = content.split("\n")[0];
 				mission["name"] = content.split("\n")[1];
@@ -122,21 +155,20 @@ export default {
 			});
 			this.missions = this.missions.sort(function (a, b) {
 				return b["slug"] - a["slug"];
-			})
+			});
 		},
 
 		async importEvents(files) {
-			let filePromises = Object.keys(files).map(path => files[path]());
+			let filePromises = Object.keys(files).map((path) => files[path]());
 			let fileContents = await Promise.all(filePromises);
 
-			fileContents.forEach(content => {
+			fileContents.forEach((content) => {
 				const lines = String(content).split(/\r?\n/);
 
 				let event = {};
 				event["title"] = lines[0] ?? "";
 				event["location"] = lines[1] ?? "";
 				event["time"] = lines[2] ?? "";
-				// ✅ only needed change: line 4 becomes a real URL for <img :src="event.thumbnail" />
 				event["thumbnail"] = this.normalizeEventThumbnailToUrl(lines[3] ?? "");
 				event["content"] = lines.slice(4).join("\n");
 
@@ -147,25 +179,24 @@ export default {
 		},
 
 		async importClocks(files) {
-			let filePromises = Object.keys(files).map(path => files[path]());
+			let filePromises = Object.keys(files).map((path) => files[path]());
 			let fileContents = await Promise.all(filePromises);
-			fileContents.forEach(content => {
+			fileContents.forEach((content) => {
 				this.clocks = JSON.parse(JSON.stringify(content)).default;
 			});
 		},
 		async importReserves(files) {
-			let filePromises = Object.keys(files).map(path => files[path]());
+			let filePromises = Object.keys(files).map((path) => files[path]());
 			let fileContents = await Promise.all(filePromises);
-			fileContents.forEach(content => {
+			fileContents.forEach((content) => {
 				this.reserves = JSON.parse(JSON.stringify(content)).default;
 			});
 		},
 		async importPilots(files) {
-			let filePromises = Object.keys(files).map(path => files[path]());
+			let filePromises = Object.keys(files).map((path) => files[path]());
 			let fileContents = await Promise.all(filePromises);
-			fileContents.forEach(content => {
+			fileContents.forEach((content) => {
 				let pilotFromJson = JSON.parse(JSON.stringify(content));
-				// In case the pilot was added from a copy on compcon via sharecode, remove the "reference mark" symbol
 				pilotFromJson.name = pilotFromJson.name.replace("※", "");
 				pilotFromJson.callsign = pilotFromJson.callsign.replace("※", "");
 				let pilotFromVue = this.pilotSpecialInfo[pilotFromJson.callsign.toUpperCase()];
@@ -174,7 +205,7 @@ export default {
 					...pilotFromVue,
 				};
 				this.pilots = [...this.pilots, pilot];
-				pilot.clocks.forEach(content => {
+				pilot.clocks.forEach((content) => {
 					let clock = {};
 					clock["type"] = `Pilot Project // ${pilot.callsign}`;
 					clock["result"] = "";
@@ -186,7 +217,7 @@ export default {
 					this.clocks = [...this.clocks, clock];
 				});
 
-				pilot.reserves.forEach(content => {
+				pilot.reserves.forEach((content) => {
 					let reserve = {};
 					reserve["type"] = content.type;
 					reserve["name"] = content.name;
