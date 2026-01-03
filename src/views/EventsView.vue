@@ -15,7 +15,7 @@
 			<div class="section-content-container">
 				<div class="events-list-container">
 					<Event
-						v-for="item in eventsForList"
+						v-for="item in beatsEvents"
 						:key="item.title"
 						:event="item"
 						:animate="animate"
@@ -41,6 +41,13 @@
 						<h2>{{ selectedEvent.title }}</h2>
 					</div>
 
+					<img
+						v-if="selectedEvent.image"
+						:src="resolvePublicImagesSrc(selectedEvent.image)"
+						alt=""
+						style="max-width: 100%; height: auto; display: block; margin: 12px 0;"
+					/>
+
 					<vue-markdown-it :source="markdownSource" class="markdown" />
 				</div>
 			</div>
@@ -53,10 +60,19 @@ import { VueMarkdownIt } from "@f3ve/vue-markdown-it";
 import Event from "@/components/Event.vue";
 
 export default {
-	components: { VueMarkdownIt, Event },
+	components: {
+		VueMarkdownIt,
+		Event,
+	},
 	props: {
-		animate: { type: Boolean, required: true },
-		events: { type: Array, required: true },
+		animate: {
+			type: Boolean,
+			required: true,
+		},
+		events: {
+			type: Array,
+			required: true,
+		},
 	},
 	data() {
 		return {
@@ -64,16 +80,20 @@ export default {
 		};
 	},
 	computed: {
-		eventsForList() {
+		// ✅ Only change for BEATS:
+		// Ensure each event has `image` resolved from first markdown image (or existing event.image)
+		beatsEvents() {
 			return (this.events || []).map((e) => {
-				const extracted = this.extractFirstMarkdownImage(e?.content || "");
-				const image = e?.image || extracted || "";
+				const extracted = this.extractFirstMarkdownImage((e && e.content) || "");
+				const img = (e && e.image) || extracted;
+
 				return {
 					...e,
-					image: image ? this.resolvePublicImagesSrc(image) : "",
+					image: img ? this.resolvePublicImagesSrc(img) : e.image,
 				};
 			});
 		},
+
 		markdownSource() {
 			const src = (this.selectedEvent && this.selectedEvent.content) || "";
 			return this.rewriteMarkdownImagePathsToPublicImages(src);
@@ -87,44 +107,63 @@ export default {
 		isExternalUrl(value) {
 			return /^(https?:)?\/\//i.test(value) || /^data:/i.test(value);
 		},
+
 		stripMarkdownAngleBrackets(url) {
 			const s = String(url).trim();
 			if (s.startsWith("<") && s.endsWith(">")) return s.slice(1, -1).trim();
 			return s;
 		},
+
 		normalizeLocalPath(path) {
+			// Remove leading ./ or /, keep inner folders.
 			return String(path).trim().replace(/^\.?\/*/, "");
 		},
+
 		resolvePublicImagesSrc(input) {
 			if (!input) return "";
-			const raw = this.stripMarkdownAngleBrackets(String(input).trim()).replace(/^['"]|['"]$/g, "");
+			const raw = this.stripMarkdownAngleBrackets(String(input).trim());
 
+			// Keep external + already-absolute paths untouched
 			if (this.isExternalUrl(raw) || raw.startsWith("/")) return raw;
 
 			return `/images/${this.normalizeLocalPath(raw)}`;
 		},
 
+		// ✅ Extracts first markdown image URL from content, e.g. ![](Rio-Grande.png)
 		extractFirstMarkdownImage(markdown) {
-			// Matches: ![alt](url) or ![alt](<url with spaces>)
-			const re = /!\[[^\]]*]\((<[^>]+>|[^)]+?)\)/g;
-			const m = re.exec(String(markdown));
-			if (!m) return "";
-			return this.stripMarkdownAngleBrackets(m[1]);
+			const re = /!\[[^\]]*]\((<[^>]+>|[^)]+?)\)/;
+			const match = re.exec(String(markdown));
+			if (!match) return "";
+			return this.stripMarkdownAngleBrackets(match[1]);
 		},
 
 		rewriteMarkdownImagePathsToPublicImages(markdown) {
+			/**
+			 * Rewrites markdown image URLs:
+			 *   ![alt](file.png)           -> ![alt](/images/file.png)
+			 *   ![alt](folder/file.png)    -> ![alt](/images/folder/file.png)
+			 *   ![alt](<Rio Grande.png>)   -> ![alt](/images/Rio Grande.png) (keeps wrapping)
+			 *
+			 * Leaves:
+			 *   ![alt](/images/file.png)
+			 *   ![alt](/anything-absolute)
+			 *   ![alt](https://...)
+			 *   ![alt](data:...)
+			 */
 			const re = /!\[([^\]]*)\]\((<[^>]+>|[^)]+?)(\s+"[^"]*")?\)/g;
 
 			return String(markdown).replace(re, (full, alt, rawUrl, title = "") => {
 				let url = String(rawUrl).trim();
-				const wasWrapped = url.startsWith("<") && url.endsWith(">");
 
+				const wasWrapped = url.startsWith("<") && url.endsWith(">");
 				url = this.stripMarkdownAngleBrackets(url).replace(/^['"]|['"]$/g, "");
 
 				if (this.isExternalUrl(url) || url.startsWith("/")) return full;
 
 				const rewritten = `/images/${this.normalizeLocalPath(url)}`;
-				const finalUrl = wasWrapped || /\s/.test(url) ? `<${rewritten}>` : rewritten;
+
+				// If the original used <...> or the filename contains spaces, wrap to keep markdown valid.
+				const finalUrl = (wasWrapped || /\s/.test(url)) ? `<${rewritten}>` : rewritten;
 
 				return `![${alt}](${finalUrl}${title})`;
 			});
@@ -132,61 +171,3 @@ export default {
 	},
 };
 </script>
-
-<!-- ------------------------------------------------------------ -->
-
-<!-- src/components/Event.vue (add thumbnail support) -->
-<template>
-	<div class="event-card" @click="$emit('select-event')">
-		<img
-			v-if="event && event.image"
-			:src="event.image"
-			alt=""
-			class="event-thumb"
-			loading="lazy"
-		/>
-		<div class="event-meta">
-			<h3 class="event-title">{{ event.title }}</h3>
-			<p class="event-sub">{{ event.location }} // {{ event.time }}</p>
-		</div>
-	</div>
-</template>
-
-<script>
-export default {
-	props: {
-		event: { type: Object, required: true },
-		animate: { type: Boolean, required: true },
-	},
-};
-</script>
-
-<style scoped>
-.event-card {
-	display: flex;
-	gap: 12px;
-	align-items: center;
-	cursor: pointer;
-}
-
-.event-thumb {
-	width: 72px;
-	height: 72px;
-	object-fit: cover;
-	border-radius: 6px;
-	flex: 0 0 auto;
-}
-
-.event-meta {
-	min-width: 0;
-}
-
-.event-title {
-	margin: 0;
-}
-
-.event-sub {
-	margin: 0;
-	opacity: 0.8;
-}
-</style>
