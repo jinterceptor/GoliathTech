@@ -41,10 +41,9 @@
 						<h2>{{ selectedEvent.title }}</h2>
 					</div>
 
-					<!-- Optional: if your event objects have an `image` field -->
 					<img
 						v-if="selectedEvent.image"
-						:src="resolveImageSrc(selectedEvent.image)"
+						:src="resolvePublicImagesSrc(selectedEvent.image)"
 						alt=""
 						style="max-width: 100%; height: auto; display: block; margin: 12px 0;"
 					/>
@@ -77,13 +76,13 @@ export default {
 	},
 	data() {
 		return {
-			selectedEvent: {}, // ✅ fix: data should be the actual object, not a "type" descriptor
+			selectedEvent: {},
 		};
 	},
 	computed: {
 		markdownSource() {
 			const src = (this.selectedEvent && this.selectedEvent.content) || "";
-			return this.rewriteMarkdownImagePaths(src);
+			return this.rewriteMarkdownImagePathsToPublicImages(src);
 		},
 	},
 	methods: {
@@ -91,34 +90,61 @@ export default {
 			this.selectedEvent = event || {};
 		},
 
-		resolveImageSrc(input) {
-			if (!input) return "";
-			const s = String(input).trim();
-
-			// Keep absolute/external sources untouched
-			if (this.isExternalUrl(s) || s.startsWith("/")) return s;
-
-			// Treat as file under public/images/
-			return `/images/${s.replace(/^\.?\/*/, "")}`;
-		},
-
-		rewriteMarkdownImagePaths(markdown) {
-			// Rewrites: ![alt](file.png) -> ![alt](/images/file.png)
-			// Leaves:  ![alt](/images/file.png) and ![alt](https://...) as-is
-			const re = /!\[([^\]]*)\]\(([^)\s]+)(\s+"[^"]*")?\)/g;
-
-			return String(markdown).replace(re, (full, alt, url, title = "") => {
-				const rawUrl = String(url).trim().replace(/^['"]|['"]$/g, "");
-
-				if (this.isExternalUrl(rawUrl) || rawUrl.startsWith("/")) return full;
-
-				const rewritten = `/images/${rawUrl.replace(/^\.?\/*/, "")}`;
-				return `![${alt}](${rewritten}${title})`;
-			});
-		},
-
 		isExternalUrl(value) {
 			return /^(https?:)?\/\//i.test(value) || /^data:/i.test(value);
+		},
+
+		stripMarkdownAngleBrackets(url) {
+			const s = String(url).trim();
+			if (s.startsWith("<") && s.endsWith(">")) return s.slice(1, -1).trim();
+			return s;
+		},
+
+		normalizeLocalPath(path) {
+			// Remove leading ./ or /, keep inner folders.
+			return String(path).trim().replace(/^\.?\/*/, "");
+		},
+
+		resolvePublicImagesSrc(input) {
+			if (!input) return "";
+			const raw = this.stripMarkdownAngleBrackets(String(input).trim());
+
+			// Keep external + already-absolute paths untouched
+			if (this.isExternalUrl(raw) || raw.startsWith("/")) return raw;
+
+			return `/images/${this.normalizeLocalPath(raw)}`;
+		},
+
+		rewriteMarkdownImagePathsToPublicImages(markdown) {
+			/**
+			 * Rewrites markdown image URLs:
+			 *   ![alt](file.png)           -> ![alt](/images/file.png)
+			 *   ![alt](folder/file.png)    -> ![alt](/images/folder/file.png)
+			 *   ![alt](<Rio Grande.png>)   -> ![alt](/images/Rio Grande.png) (keeps wrapping)
+			 *
+			 * Leaves:
+			 *   ![alt](/images/file.png)
+			 *   ![alt](/anything-absolute)
+			 *   ![alt](https://...)
+			 *   ![alt](data:...)
+			 */
+			const re = /!\[([^\]]*)\]\((<[^>]+>|[^)]+?)(\s+"[^"]*")?\)/g;
+
+			return String(markdown).replace(re, (full, alt, rawUrl, title = "") => {
+				let url = String(rawUrl).trim();
+
+				const wasWrapped = url.startsWith("<") && url.endsWith(">");
+				url = this.stripMarkdownAngleBrackets(url).replace(/^['"]|['"]$/g, "");
+
+				if (this.isExternalUrl(url) || url.startsWith("/")) return full;
+
+				const rewritten = `/images/${this.normalizeLocalPath(url)}`;
+
+				// If the original used <...> or the filename contains spaces, wrap to keep markdown valid.
+				const finalUrl = (wasWrapped || /\s/.test(url)) ? `<${rewritten}>` : rewritten;
+
+				return `![${alt}](${finalUrl}${title})`;
+			});
 		},
 	},
 };
