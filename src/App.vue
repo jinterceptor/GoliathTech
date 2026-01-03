@@ -20,7 +20,7 @@
 		</defs>
 	</svg>
 	<audio autoplay>
-		<source src="/startup.ogg" type="audio/ogg" />
+		<source src="/sounds/startup.ogg" type="audio/ogg" />
 	</audio>
 </template>
 
