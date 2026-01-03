@@ -69,13 +69,13 @@ export default {
 };
 </script>
 
-<style lang="scss" scoped>
+<style scoped>
 .logo {
-	flex-shrink: 0; // prevent flexbox from squeezing the SVG
-	width: auto; // preserve aspect ratio
-	height: 100%; // use container height (swap to a fixed px height if needed)
+	flex-shrink: 0; /* prevent flexbox from squeezing the SVG */
+	width: auto; /* preserve aspect ratio */
+	height: 100%; /* use container height (swap to a fixed px height if needed) */
 	max-height: 100%;
-	object-fit: contain; // keep SVG from stretching/squishing
-	display: block; // avoid inline baseline quirks
+	object-fit: contain; /* keep SVG from stretching/squishing */
+	display: block; /* avoid inline baseline quirks */
 }
 </style>
