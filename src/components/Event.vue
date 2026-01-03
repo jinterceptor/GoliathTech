@@ -41,13 +41,18 @@ export default {
 		},
 
 		thumbnailSrc() {
-			const explicit = this.event?.thumbnail;
-			if (explicit) return this.toPublicImagesSrc(explicit);
+			// In this repo, `event.thumbnail` is the *raw 4th line* of the md file,
+			// often like: ![](Rio Grande.png)
+			const raw = (this.event && this.event.thumbnail) || "";
 
-			const extracted = this.extractFirstMarkdownImage(this.event?.content || "");
-			if (extracted) return this.toPublicImagesSrc(extracted);
+			const urlFromThumbLine =
+				this.extractFirstMarkdownImage(raw) || this.extractFirstMarkdownLink(raw) || raw;
 
-			return "";
+			const extracted = urlFromThumbLine.trim()
+				? urlFromThumbLine
+				: this.extractFirstMarkdownImage(this.event?.content || "");
+
+			return extracted ? this.toPublicImagesSrc(extracted) : "";
 		},
 	},
 	methods: {
@@ -62,7 +67,7 @@ export default {
 			// external/data URLs stay as-is
 			if (/^(https?:)?\/\//i.test(s) || /^data:/i.test(s)) return s;
 
-			// absolute paths get encoded (handles "/images/Rio Grande.png")
+			// absolute paths should be URL-encoded (handles "/images/Rio Grande.png")
 			if (s.startsWith("/")) return encodeURI(s);
 
 			// relative file -> served from public/images (encode spaces, etc.)
@@ -78,7 +83,17 @@ export default {
 
 			let url = String(match[1]).trim();
 			if (url.startsWith("<") && url.endsWith(">")) url = url.slice(1, -1).trim();
+			return url;
+		},
 
+		extractFirstMarkdownLink(markdown) {
+			// [](file.png) or [text](file.png) as a fallback
+			const re = /\[[^\]]*]\((<[^>]+>|[^)]+?)\)/;
+			const match = re.exec(String(markdown));
+			if (!match) return "";
+
+			let url = String(match[1]).trim();
+			if (url.startsWith("<") && url.endsWith(">")) url = url.slice(1, -1).trim();
 			return url;
 		},
 	},
