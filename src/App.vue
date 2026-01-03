@@ -1,3 +1,4 @@
+<!-- src/App.vue -->
 <template>
 	<div class="page-wrapper">
 		<Header :planet-path="planetPath" :class="{ animate: animate }" :header="header" />
@@ -69,6 +70,45 @@ export default {
 			faviconEl.setAttribute('href', favicon);
 			headEl.appendChild(faviconEl);
 		},
+
+		// --- added (needed for event thumbnails) ---
+		isExternalUrl(value) {
+			return /^(https?:)?\/\//i.test(value) || /^data:/i.test(value);
+		},
+		normalizeEventThumbnailToUrl(thumbnailLine) {
+			const line = String(thumbnailLine ?? "").trim();
+			if (!line) return "";
+
+			// Accept:
+			//   ![](file.png)
+			//   ![](<Rio Grande.png>)
+			//   [](file.png)
+			//   file.png
+			let url = line;
+
+			const mdImage = /!\[[^\]]*]\((<[^>]+>|[^)]+?)\)/.exec(line);
+			const mdLink = /\[[^\]]*]\((<[^>]+>|[^)]+?)\)/.exec(line);
+
+			if (mdImage?.[1]) url = mdImage[1];
+			else if (mdLink?.[1]) url = mdLink[1];
+
+			url = String(url).trim();
+
+			// unwrap <...>
+			if (url.startsWith("<") && url.endsWith(">")) url = url.slice(1, -1).trim();
+
+			// Keep external/data as-is
+			if (this.isExternalUrl(url)) return url;
+
+			// Absolute path: just encode it
+			if (url.startsWith("/")) return encodeURI(url);
+
+			// Otherwise: treat as file under public/images/
+			const rel = url.replace(/^\.?\/*/, "");
+			return encodeURI(`/images/${rel}`);
+		},
+		// --- end added ---
+
 		async importMissions(files) {
 			let filePromises = Object.keys(files).map(path => files[path]());
 			let fileContents = await Promise.all(filePromises);
@@ -84,20 +124,28 @@ export default {
 				return b["slug"] - a["slug"];
 			})
 		},
+
 		async importEvents(files) {
 			let filePromises = Object.keys(files).map(path => files[path]());
 			let fileContents = await Promise.all(filePromises);
+
 			fileContents.forEach(content => {
+				const lines = String(content).split(/\r?\n/);
+
 				let event = {};
-				event["title"] = content.split("\n")[0];
-				event["location"] = content.split("\n")[1];
-				event["time"] = content.split("\n")[2];
-				event["thumbnail"] = content.split("\n")[3];
-				event["content"] = content.split("\n").splice(4).join("\n");
+				event["title"] = lines[0] ?? "";
+				event["location"] = lines[1] ?? "";
+				event["time"] = lines[2] ?? "";
+				// ✅ only needed change: line 4 becomes a real URL for <img :src="event.thumbnail" />
+				event["thumbnail"] = this.normalizeEventThumbnailToUrl(lines[3] ?? "");
+				event["content"] = lines.slice(4).join("\n");
+
 				this.events = [...this.events, event];
 			});
+
 			this.events = this.events.reverse();
 		},
+
 		async importClocks(files) {
 			let filePromises = Object.keys(files).map(path => files[path]());
 			let fileContents = await Promise.all(filePromises);
