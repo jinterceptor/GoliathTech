@@ -154,6 +154,8 @@ import Typer from '@/components/Typer.vue'
 
 import ProgressBar from '@/components/ProgressBar.vue'
 import Burden from '@/components/Burden.vue'
+import sfx from '@/services/sfx'
+
 
 export default {
   components: {
