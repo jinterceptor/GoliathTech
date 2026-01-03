@@ -6,7 +6,7 @@
 				<span class="dot" />
 				<span class="dot" />
 				<span class="dot" />
-				<div class="title">GOLIATH TECH // ORBAT TERMINAL</div>
+				<div class="title">TASK FORCE INDIGO OMNINET LINK</div>
 			</div>
 
 			<div class="monitor-body">
