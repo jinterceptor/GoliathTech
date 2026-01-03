@@ -59,11 +59,15 @@ export default {
 			const s = String(input || "").trim();
 			if (!s) return "";
 
-			// external/data URLs and already-absolute paths stay as-is
-			if (/^(https?:)?\/\//i.test(s) || /^data:/i.test(s) || s.startsWith("/")) return s;
+			// external/data URLs stay as-is
+			if (/^(https?:)?\/\//i.test(s) || /^data:/i.test(s)) return s;
 
-			// relative file -> served from public/images
-			return `/images/${s.replace(/^\.?\/*/, "")}`;
+			// absolute paths get encoded (handles "/images/Rio Grande.png")
+			if (s.startsWith("/")) return encodeURI(s);
+
+			// relative file -> served from public/images (encode spaces, etc.)
+			const rel = s.replace(/^\.?\/*/, "");
+			return encodeURI(`/images/${rel}`);
 		},
 
 		extractFirstMarkdownImage(markdown) {
