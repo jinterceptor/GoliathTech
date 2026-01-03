@@ -12,27 +12,16 @@
 				<div class="flicker" aria-hidden="true"></div>
 
 				<div class="txt">
-					<div class="line">BOOT SEQUENCE: GMS/UNION FIELD TERMINAL</div>
-					<div class="line dim">ROUTE: DEEP SPACE RELAY // CRESSIDIUM VECTOR</div>
-					<div class="line dim">AUTHORITY: UNION NAVCOM // TF INDIGO</div>
+					<div class="typed" v-html="typedHtml"></div>
 
-					<div class="spacer"></div>
-
-					<div class="flavor">
-						<div class="line dim">» NHP INTERFACE: CAGED // STABLE</div>
-						<div class="line dim">» BLINKSPACE LATENCY: VARIABLE // ACCEPTABLE</div>
-						<div class="line dim">» CORPRO STATE TRAFFIC: FILTERED // MONITORED</div>
-						<div class="line dim">» PILOT BIOMETRICS: REQUIRED FOR AUDIO CHANNEL</div>
-					</div>
-
-					<div class="progress">
+					<div class="progress" v-if="booting || typedDone">
 						<div class="bar" :class="{ booting }"></div>
 					</div>
 
-					<div class="line" v-if="!booting">CLICK TO ESTABLISH HANDSHAKE</div>
-					<div class="line" v-else>HANDSHAKE ACCEPTED // CHANNEL OPEN</div>
+					<div class="line" v-if="typedDone && !booting">CLICK TO ESTABLISH HANDSHAKE</div>
+					<div class="line" v-if="booting">HANDSHAKE ACCEPTED // CHANNEL OPEN</div>
 
-					<div class="small dim">
+					<div class="small dim" v-if="typedDone">
 						<span class="caret"></span>
 						LOCAL AUDIO LOCKOUT ACTIVE UNTIL USER INPUT
 					</div>
@@ -54,11 +43,111 @@ export default {
 	name: "BootScreen",
 	emits: ["enter", "done"],
 	data() {
-		return { booting: false, exiting: false };
+		return {
+			booting: false,
+			exiting: false,
+
+			fullLines: [
+				"BOOT SEQUENCE: GMS/UNION FIELD TERMINAL",
+				"ROUTE: DEEP SPACE RELAY // CRESSIDIUM VECTOR",
+				"AUTHORITY: UNION NAVCOM // TF INDIGO",
+				"",
+				"» NHP INTERFACE: CAGED // STABLE",
+				"» BLINKSPACE LATENCY: VARIABLE // ACCEPTABLE",
+				"» CORPRO STATE TRAFFIC: FILTERED // MONITORED",
+				"» PILOT BIOMETRICS: REQUIRED FOR AUDIO CHANNEL",
+			],
+			typedLines: [],
+			typedCharIndex: 0,
+			lineIndex: 0,
+			typedDone: false,
+			timer: null,
+		};
+	},
+	computed: {
+		typedHtml() {
+			// Render already-completed lines as separate divs to preserve spacing.
+			const escape = (s) =>
+				String(s)
+					.replaceAll("&", "&amp;")
+					.replaceAll("<", "&lt;")
+					.replaceAll(">", "&gt;");
+
+			const html = this.typedLines
+				.map((l) => {
+					if (l === "") return `<div class="line spacer"></div>`;
+					const isFlavor = l.trim().startsWith("»");
+					return `<div class="line ${isFlavor ? "dim" : ""}">${escape(l)}</div>`;
+				})
+				.join("");
+
+			// Add caret on the current typing line (or at end)
+			if (!this.typedDone) {
+				return `${html}<div class="line dim"><span class="caret"></span></div>`;
+			}
+
+			return html;
+		},
+	},
+	mounted() {
+		this.startTyping();
+	},
+	beforeUnmount() {
+		if (this.timer) window.clearTimeout(this.timer);
 	},
 	methods: {
+		startTyping() {
+			const minDelay = 14;
+			const maxDelay = 34;
+
+			const tick = () => {
+				if (this.lineIndex >= this.fullLines.length) {
+					this.typedDone = true;
+					this.timer = null;
+					return;
+				}
+
+				const target = this.fullLines[this.lineIndex];
+
+				// Blank line -> push immediately and move on
+				if (target === "") {
+					this.typedLines.push("");
+					this.lineIndex += 1;
+					this.typedCharIndex = 0;
+					this.timer = window.setTimeout(tick, 120);
+					return;
+				}
+
+				// Ensure the current line exists in typedLines
+				if (this.typedLines.length <= this.lineIndex) this.typedLines.push("");
+
+				// Type next char
+				const next = target.slice(0, this.typedCharIndex + 1);
+				this.typedLines.splice(this.lineIndex, 1, next);
+				this.typedCharIndex += 1;
+
+				// End of line: pause, then advance
+				if (this.typedCharIndex >= target.length) {
+					this.lineIndex += 1;
+					this.typedCharIndex = 0;
+					this.timer = window.setTimeout(tick, 220);
+					return;
+				}
+
+				// Natural jitter + occasional longer pause
+				const jitter = Math.floor(minDelay + Math.random() * (maxDelay - minDelay));
+				const extra = Math.random() < 0.06 ? 90 : 0;
+
+				this.timer = window.setTimeout(tick, jitter + extra);
+			};
+
+			tick();
+		},
+
 		enter() {
+			if (!this.typedDone) return; // require boot text to finish before accepting click
 			if (this.booting || this.exiting) return;
+
 			this.booting = true;
 			this.$emit("enter");
 
@@ -105,7 +194,6 @@ export default {
 		0 0 90px rgba(0, 0, 0, 0.6);
 }
 
-/* Header now blends into the window (no “wrapped”/pill title feel) */
 .hdr {
 	display: flex;
 	align-items: center;
@@ -136,7 +224,7 @@ export default {
 .body {
 	position: relative;
 	padding: 28px 22px 26px;
-	min-height: 250px;
+	min-height: 270px;
 }
 
 .txt {
@@ -155,12 +243,12 @@ export default {
 	opacity: 0.7;
 }
 
-.spacer {
+.line.spacer {
 	height: 10px;
 }
 
-.flavor {
-	margin: 6px 0 2px;
+.typed {
+	min-height: 170px;
 }
 
 .small {
