@@ -37,22 +37,29 @@ export default {
 	},
 	computed: {
 		getPreview() {
-			return this.removeMd(this.event.content).substring(0, 200) + "...";
+			const raw = String(this.event?.content ?? "");
+			const beforeFirstHeader = this.takeBeforeFirstMarkdownHeader(raw);
+
+			const text = this.removeMd(beforeFirstHeader)
+				.replace(/\s+/g, " ")
+				.trim();
+
+			if (!text) return "";
+
+			const maxLen = 200;
+			return text.length > maxLen ? `${text.slice(0, maxLen)}...` : text;
 		},
 
 		thumbnailSrc() {
-			// In this repo, `event.thumbnail` is the *raw 4th line* of the md file,
-			// often like: ![](Rio Grande.png)
-			const raw = (this.event && this.event.thumbnail) || "";
+			const line = String(this.event?.thumbnail ?? "").trim();
+			if (!line) return "";
 
-			const urlFromThumbLine =
-				this.extractFirstMarkdownImage(raw) || this.extractFirstMarkdownLink(raw) || raw;
+			const extracted =
+				this.extractFirstMarkdownImage(line) ||
+				this.extractFirstMarkdownLink(line) ||
+				line;
 
-			const extracted = urlFromThumbLine.trim()
-				? urlFromThumbLine
-				: this.extractFirstMarkdownImage(this.event?.content || "");
-
-			return extracted ? this.toPublicImagesSrc(extracted) : "";
+			return this.toPublicImagesSrc(extracted);
 		},
 	},
 	methods: {
@@ -60,23 +67,31 @@ export default {
 			this.$emit("select-event", this.event);
 		},
 
+		// Only show preview content before the first markdown header line (e.g. "#", "##", "###", etc.)
+		takeBeforeFirstMarkdownHeader(markdown) {
+			const lines = String(markdown).split(/\r?\n/);
+			const out = [];
+
+			for (const line of lines) {
+				if (/^\s*#{1,6}\s+/.test(line)) break;
+				out.push(line);
+			}
+
+			return out.join("\n").trim();
+		},
+
 		toPublicImagesSrc(input) {
 			const s = String(input || "").trim();
 			if (!s) return "";
 
-			// external/data URLs stay as-is
 			if (/^(https?:)?\/\//i.test(s) || /^data:/i.test(s)) return s;
-
-			// absolute paths should be URL-encoded (handles "/images/Rio Grande.png")
 			if (s.startsWith("/")) return encodeURI(s);
 
-			// relative file -> served from public/images (encode spaces, etc.)
 			const rel = s.replace(/^\.?\/*/, "");
 			return encodeURI(`/images/${rel}`);
 		},
 
 		extractFirstMarkdownImage(markdown) {
-			// ![](file.png) or ![](<file with spaces.png>)
 			const re = /!\[[^\]]*]\((<[^>]+>|[^)]+?)\)/;
 			const match = re.exec(String(markdown));
 			if (!match) return "";
@@ -87,7 +102,6 @@ export default {
 		},
 
 		extractFirstMarkdownLink(markdown) {
-			// [](file.png) or [text](file.png) as a fallback
 			const re = /\[[^\]]*]\((<[^>]+>|[^)]+?)\)/;
 			const match = re.exec(String(markdown));
 			if (!match) return "";
