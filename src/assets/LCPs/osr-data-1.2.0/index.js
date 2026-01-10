@@ -6,7 +6,6 @@ import t from "./talents.json"
 
 const data = {
   frames: f,
-  pilot_gear: p,
   systems: s,
   weapons: w,
   talents: t,
