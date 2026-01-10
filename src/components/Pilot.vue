@@ -193,10 +193,10 @@ export default {
       return [...lancerData.pilot_gear, ...dustgraveData.pilot_gear]
     },
     mechWeapons() {
-      return [...lancerData.weapons, ...ktbData.weapons, ...nrfawData.weapons, ...longrimData.weapons, ...dustgraveData.weapons, ...Terkdata.weapons]
+      return [...lancerData.weapons, ...ktbData.weapons, ...nrfawData.weapons, ...longrimData.weapons, ...dustgraveData.weapons, ...TerkData.weapons]
     },
     mechSystems() {
-      return [...lancerData.systems, ...ktbData.systems, ...nrfawData.systems, ...longrimData.systems, ...dustgraveData.systems, ...Terkdata.systems]
+      return [...lancerData.systems, ...ktbData.systems, ...nrfawData.systems, ...longrimData.systems, ...dustgraveData.systems, ...TerkData.systems]
     },
     talents() {
       return [...lancerData.talents, ...ktbData.talents, ...nrfawData.talents, ...longrimData.talents, ...dustgraveData.talents]
@@ -208,7 +208,7 @@ export default {
       return [...ktbData.bonds]
     },
     frames() {
-      return [...lancerData.frames, ...ktbData.frames, ...nrfawData.frames, ...longrimData.frames, ...dustgraveData.frames, ...Terkdata.frames]
+      return [...lancerData.frames, ...ktbData.frames, ...nrfawData.frames, ...longrimData.frames, ...dustgraveData.frames, ...TerkData.frames]
     },
     mechManufacturerIcon() {
       if (this.activeMech.manufacturer)
